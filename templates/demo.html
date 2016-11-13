@@ -5,16 +5,18 @@
     </head>
     <body>
         {% if token %}
-        <h1> Congratulations! you have successfully authenticated and your token is: {{ token }} </h1>
+        <h2> Congratulations! you have successfully authenticated and your token is: {{ token }} </h2>
         {% else %}
         <h1> Something went wrong :( </h1>
         {% endif %}
 
-        <h2> Test the following functions of the api! </h2>
-        <button type="button" onclick="action('products')">PRODUCTS!</button>
-        <button type="button" onclick="action('time')">TIME ESTIMATES!</button>
-        <button type="button" onclick="action('price')">PRICE ESTIMATES!</button>
-        <button type="button" onclick="action('history')">HISTORY!</button>
-        <button type="button" onclick="action('me')">ME!</button>
+        <form action="remind" method="post">
+            Source:                     <input type="text" name="sourceText"><br>
+            Destination:                <input type="text" name="destinationText"><br>
+            Time(HH:MM:SS, 24h format): <input type="text" name="time"><br>
+            Email:                      <input type="text" name="email"><br>
+            <input type="submit" value="REMIND ME">
+        </form>
+
     </body>
 </html>

@@ -3,11 +3,13 @@ from __future__ import absolute_import
 import json
 import os
 from urlparse import urlparse
-
+import googlemaps
 from flask import Flask, render_template, request, redirect, session
 from flask_sslify import SSLify
 from rauth import OAuth2Service
 import requests
+import datetime
+import sendgrid
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.requests_session = requests.Session()
@@ -94,44 +96,43 @@ def demo():
     return render_template('demo.html', token=session.get('access_token'))
 
 
-@app.route('/products', methods=['GET'])
-def products():
-    """Example call to the products endpoint.
-
-    Returns all the products currently available in San Francisco.
-    """
-    url = config.get('base_uber_url') + 'products'
-    params = {
-        'latitude': config.get('start_latitude'),
-        'longitude': config.get('start_longitude'),
-    }
-
-    response = app.requests_session.get(
-        url,
-        headers=generate_ride_headers(session.get('access_token')),
-        params=params,
-    )
-
-    if response.status_code != 200:
-        return 'There was an error', response.status_code
-    return render_template(
-        'results.html',
-        endpoint='products',
-        data=response.text,
-    )
 
 
-@app.route('/time', methods=['GET'])
-def time():
-    """Example call to the time estimates endpoint.
-
-    Returns the time estimates from the given lat/lng given below.
-    """
+@app.route('/remind', methods = ['POST'])
+def remind():
     url = config.get('base_uber_url') + 'estimates/time'
+    gmaps = googlemaps.Client(key='AIzaSyDTZt-pkIfewSKGRIEypBJHUNhdALTz6io')
+
+    source = request.form['sourceText']
+    destination = request.form['destinationText']
+    user_time = request.form['time']
+    email = request.form['email']
+
+    src_lat = source.split(',')[0]
+    src_lng = source.split(',')[1]
+
+    # dest_lat = destination.split(',')[0]
+    # dest_lng = destination.split(',')[1]
+
     params = {
-        'start_latitude': config.get('start_latitude'),
-        'start_longitude': config.get('start_longitude'),
+        'start_latitude': src_lat,
+        'start_longitude': src_lng,
     }
+
+    eta = gmaps.distance_matrix(source, destination)
+    if eta['rows'][0]['elements'][0]['status'] == "OK":
+        # duration = eta['rows']['elements']['duration']['text']
+        o = 0
+        for i in eta['rows']:
+            d = 0
+            o += 1
+            for j in i['elements']:
+                duration_in_seconds = j['duration']['value']
+                d += 1
+    maps_duration_in_hours = str(datetime.timedelta(seconds=duration_in_seconds))
+
+    time_format = '%H:%M:%S'
+    ride_time = datetime.datetime.strptime(user_time, time_format) - datetime.datetime.strptime(maps_duration_in_hours, time_format)
 
     response = app.requests_session.get(
         url,
@@ -139,85 +140,52 @@ def time():
         params=params,
     )
 
-    if response.status_code != 200:
-        return 'There was an error', response.status_code
-    return render_template(
-        'results.html',
-        endpoint='time',
-        data=response.text,
-    )
+    estimated_time = 0
+    sourceResponse = response.text
+    uberGo = json.loads(sourceResponse)
+    for row in uberGo['times']:
+        if 'UberGO' or 'uberGO' in row.values():
+            uber_estimated_seconds = row['estimate']
+            uber_estimated_hhmmss = datetime.timedelta(seconds=uber_estimated_seconds)
 
+            email_time = ride_time - uber_estimated_hhmmss
 
-@app.route('/price', methods=['GET'])
-def price():
-    """Example call to the price estimates endpoint.
+            return render_template(
+                'results.html',
+                endpoint='time',
+                data=email_time
+            )
 
-    Returns the time estimates from the given lat/lng given below.
-    """
-    url = config.get('base_uber_url') + 'estimates/price'
-    params = {
-        'start_latitude': config.get('start_latitude'),
-        'start_longitude': config.get('start_longitude'),
-        'end_latitude': config.get('end_latitude'),
-        'end_longitude': config.get('end_longitude'),
+def send_email(email_time, email):
+    sg = sendgrid.SendGridAPIClient(apikey=os.environ.get('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'))
+
+    data = {
+        "personalizations": [
+            {
+                "to": [
+                    {
+                        "email": email
+                    }
+                ],
+                "subject": "Time to book Uber!"
+            }
+        ],
+        "send_at": email_time,
+        "from": {
+            "email": "mayurbhangale96@gmail.com"
+        },
+        "content": [
+            {
+                "type": "text/plain",
+                "value": "Hello, Its time to book your cab!"
+            }
+        ]
     }
 
-    response = app.requests_session.get(
-        url,
-        headers=generate_ride_headers(session.get('access_token')),
-        params=params,
-    )
-
-    if response.status_code != 200:
-        return 'There was an error', response.status_code
-    return render_template(
-        'results.html',
-        endpoint='price',
-        data=response.text,
-    )
-
-
-@app.route('/history', methods=['GET'])
-def history():
-    """Return the last 5 trips made by the logged in user."""
-    url = config.get('base_uber_url_v1_1') + 'history'
-    params = {
-        'offset': 0,
-        'limit': 5,
-    }
-
-    response = app.requests_session.get(
-        url,
-        headers=generate_ride_headers(session.get('access_token')),
-        params=params,
-    )
-
-    if response.status_code != 200:
-        return 'There was an error', response.status_code
-    return render_template(
-        'results.html',
-        endpoint='history',
-        data=response.text,
-    )
-
-
-@app.route('/me', methods=['GET'])
-def me():
-    """Return user information including name, picture and email."""
-    url = config.get('base_uber_url') + 'me'
-    response = app.requests_session.get(
-        url,
-        headers=generate_ride_headers(session.get('access_token')),
-    )
-
-    if response.status_code != 200:
-        return 'There was an error', response.status_code
-    return render_template(
-        'results.html',
-        endpoint='me',
-        data=response.text,
-    )
-
+    response = sg.client.mail.send.post(request_body=data)
+    print(response.status_code)
+    print(response.body)
+    print(response.headers)
 
 def get_redirect_uri(request):
     """Return OAuth redirect URI."""
