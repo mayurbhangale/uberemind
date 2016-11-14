@@ -7,6 +7,6 @@ itsdangerous==0.24
 rauth==0.7.0
 requests==2.3.0
 wsgiref==0.1.2
-
+sendgrid
 gunicorn==18.0
 Flask-SSLify==0.1.4
