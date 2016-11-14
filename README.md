@@ -13,7 +13,15 @@ How To Use This
 6. Run `python app.py`
 7. Navigate to http://localhost:7000 in your browser
 
+Deploy to Heroku
+----------------
 
+Click the button below to set up this sample app on Heroku:
+
+[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+
+After creating your app on Heroku, you have to configure the redirect URL for your Uber OAuth app. Use a `https://`*{your-app-name}*`.herokuapp.com/submit` URL.
+You will also want to configure the heroku environment variable FLASK_DEBUG=False in order to properly serve SSL traffic.
 Development
 -----------
 
